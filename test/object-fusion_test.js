@@ -1,186 +1,37 @@
+// Load in our library and dependencies
 var objectFusion = require('../lib/object-fusion.js'),
-    assert = require('assert');
+    glob = require('glob'),
+    test = require('tape');
 
-// Basics
-describe('An object outline and object content', function () {
-  before(function () {
-    // Create and save outline/content
-    this.outline = {
-      'One': {
-        'is equal to one': true
+// Find all input/output files
+var inputFiles = glob.sync('*.input.*', {cwd: __dirname});
+
+// Iterate over them
+inputFiles.forEach(function beginTest (inputFile) {
+  // Begin the test
+  test('Testing object-fusion on "' + inputFile + '"', function testFn (t) {
+    // Load in the input and output files
+    var outputFile = inputFile.replace('input', 'output'),
+        input = require('./' + inputFile),
+        expectedOutput = require('./' + outputFile);
+
+    // If there is a value proxy, swap it out
+    var valueProxy = input['value proxy'];
+    if (valueProxy) {
+      if (valueProxy === 'alias') {
+        input['value proxy'] = objectFusion.aliasProxy;
+      } else if (valueProxy === 'expand') {
+        input['value proxy'] = objectFusion.expandProxy;
       }
-    };
+    }
 
-    this.content = {
-      'One': function () {
-        this.one = 1;
-      },
-      'is equal to one': function () {
-        assert.strictEqual(this.one, 1);
-      }
-    };
-  });
+    // Process the input via object-fusion
+    var actualOutput = objectFusion(input);
 
-  describe('when fused', function () {
-    before(function () {
-      // Fuse together outline/content
-      this.fusedObject = objectFusion({
-        outline: this.outline,
-        content: this.content
-      });
-    });
+    // Compare it to the output
+    t.deepEqual(actualOutput, expectedOutput);
 
-    it('returns an object', function () {
-      assert.strictEqual(typeof this.fusedObject, 'object');
-    });
-
-    it('returns a fused object', function () {
-      // Assert the output is as we expected
-      var content = this.content;
-      assert.deepEqual({
-        'One': {
-          'value': content.One,
-          'child': {
-            'is equal to one': {
-              'value': content['is equal to one']
-            }
-          }
-        }
-      }, this.fusedObject);
-    });
-  });
-});
-
-// Intermediate
-describe('An outline and content containing keys', function () {
-  before(function () {
-    // Create and save outline/content
-    this.outline = {
-      'Two': {
-        'is equal to two': true
-      }
-    };
-
-    this.content = {
-      'Two': 'Dos',
-      'Dos': function () {
-        this.two = 2;
-      },
-      'is equal to two': function () {
-        assert.strictEqual(this.two, 2);
-      }
-    };
-  });
-
-  describe('fused with aliasing', function () {
-    before(function () {
-      // Fused outline/content
-      this.fusedObject = objectFusion({
-        outline: this.outline,
-        content: this.content,
-        'value proxy': objectFusion.aliasProxy
-      });
-    });
-
-    // Assert the output is what we anticipated
-    it('observes aliasing', function () {
-      var content = this.content;
-      assert.deepEqual({
-        'Two': {
-          'value': content.Dos,
-          'child': {
-            'is equal to two': {
-              'value': content['is equal to two']
-            }
-          }
-        }
-      }, this.fusedObject);
-    });
-  });
-});
-
-describe('An outline and content containing arrays', function () {
-  before(function () {
-    // Create and save outline/content
-    this.outline = {
-      'One plus one': {
-        'is equal to two': true
-      }
-    };
-
-    this.content = {
-      'One': function () {
-        this.sum = 1;
-      },
-      'plus one': function () {
-        this.sum += 1;
-      },
-      'One plus one': ['One', 'plus one'],
-      'is equal to two': function () {
-        assert.strictEqual(this.sum, 2);
-      }
-    };
-  });
-
-  describe('fused with expansion', function () {
-    before(function () {
-      // Fused outline/content
-      this.fusedObject = objectFusion({
-        outline: this.outline,
-        content: this.content,
-        'value proxy': objectFusion.expandProxy
-      });
-    });
-
-    it('observes expansion', function () {
-      var content = this.content;
-      assert.deepEqual({
-        'One plus one': {
-          'value': [content.One, content['plus one']],
-          'child': {
-            'is equal to two': {
-              'value': content['is equal to two']
-            }
-          }
-        }
-      }, this.fusedObject);
-    });
-  });
-});
-
-// Kitchen sink
-describe('An reverse alphabetical outline', function () {
-  before(function () {
-    // Write out a reserve alphabetical outline
-    this.outline = {
-      'z': true,
-      'a': true
-    };
-    this.content = {};
-  });
-
-  describe('when fused', function () {
-    before(function () {
-      // Fused outline/content
-      this.fusedObject = objectFusion({
-        outline: this.outline,
-        content: this.content
-      });
-    });
-
-    it('preserves order', function () {
-      // Pluck the keys in order from the fusedObject
-      var fusedObject = this.fusedObject,
-          keys = [],
-          key;
-      for (key in fusedObject) {
-        if (fusedObject.hasOwnProperty(key)) {
-          keys.push(key);
-        }
-      }
-
-      // Assert the keys are still in reverse order
-      assert.deepEqual(keys, ['z', 'a']);
-    });
+    // End the test
+    t.end();
   });
 });
